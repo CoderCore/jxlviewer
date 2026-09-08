@@ -1,9 +1,9 @@
 package fr.oupson.jxlviewer.ui.screen
 
+import android.content.pm.ActivityInfo
 import android.graphics.Bitmap
 import android.net.Uri
 import android.os.Build
-import android.util.Log
 import androidx.activity.compose.LocalActivity
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.gestures.awaitEachGesture
@@ -116,6 +116,40 @@ fun ViewerScreen(imageUri: Uri) {
                 imageUri, decodePreview = JxlLoader.DecodePreview.WithFullImage, animated = true, config = bitmapConfig
             )
             val state by painter.state().collectAsState()
+
+            val isHdr = when (val st = state) {
+                is JxlLoader.JxlState.Loaded -> st.isHdr
+                is JxlLoader.JxlState.Preview -> st.isHdr
+                else -> false
+            }
+            // Per-content color mode (the system-gallery recipe): HDR for real
+            // HDR images, WCG for everything else. The headroom attribute is
+            // already on the window from MainActivity, so the panel's HDR
+            // session activates only in HDR mode. Restored to WCG on exit.
+            DisposableEffect(isHdr, window) {
+                val w = window
+                if (w != null && Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                    val target = if (isHdr && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                        ActivityInfo.COLOR_MODE_HDR
+                    } else {
+                        ActivityInfo.COLOR_MODE_WIDE_COLOR_GAMUT
+                    }
+                    if (w.colorMode != target) {
+                        w.colorMode = target
+                        // Window.setColorMode only updates the client attrs; the
+                        // WMS-side copy (what the panel composites with) changes
+                        // on the next relayout, so push it now.
+                        w.windowManager.updateViewLayout(w.decorView, w.attributes)
+                    }
+                }
+                onDispose {
+                    val w = window
+                    if (w != null && Build.VERSION.SDK_INT >= Build.VERSION_CODES.O && w.colorMode != ActivityInfo.COLOR_MODE_WIDE_COLOR_GAMUT) {
+                        w.colorMode = ActivityInfo.COLOR_MODE_WIDE_COLOR_GAMUT
+                        w.windowManager.updateViewLayout(w.decorView, w.attributes)
+                    }
+                }
+            }
 
             // Pan/zoom state lives in a holder object: the ViewerScreen body
             // never reads scale/offset during composition, so per-gesture

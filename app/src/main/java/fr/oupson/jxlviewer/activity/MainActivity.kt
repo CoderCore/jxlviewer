@@ -29,10 +29,17 @@ class MainActivity : ComponentActivity() {
         // BT.2020+PQ bitmaps keep their absolute luminance and the panel boosts;
         // WIDE_COLOR_GAMUT on API 26-30. Unsupported values are clamped by the
         // platform; minSdk 23 has no setColorMode at all.
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-            window.colorMode = ActivityInfo.COLOR_MODE_HDR
-        } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+        // Base window state = wide color gamut (never HDR at creation), matching
+        // the system gallery: ViewerScreen flips the color mode per image
+        // (HDR for real HDR content, WCG otherwise) and restores WCG on exit.
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             window.colorMode = ActivityInfo.COLOR_MODE_WIDE_COLOR_GAMUT
+        }
+        // API 35: request EDR headroom unconditionally (the gallery keeps
+        // desiredHdrHeadroom set even in WCG mode); the panel's HDR session
+        // only activates when the mode is HDR AND headroom > 1.
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.VANILLA_ICE_CREAM) {
+            window.attributes.desiredHdrHeadroom = 4.926f
         }
         enableEdgeToEdge(
             navigationBarStyle = SystemBarStyle.auto(Color.TRANSPARENT, Color.TRANSPARENT)

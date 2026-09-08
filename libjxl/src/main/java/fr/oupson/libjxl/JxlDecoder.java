@@ -87,7 +87,7 @@ public class JxlDecoder {
          * @param orientation Same as {@link android.media.ExifInterface} orientation values.
          * @return true to continue decoding.
          */
-        boolean onHeaderDecoded(int width, int height, int intrinsicWidth, int intrinsicHeight, boolean isAnimated, int orientation);
+        boolean onHeaderDecoded(int width, int height, int intrinsicWidth, int intrinsicHeight, boolean isAnimated, int orientation, boolean isHdr);
 
         /**
          * Called if progressive data are available.

@@ -27,7 +27,7 @@ Decoder::Decoder(JNIEnv *env) : vm(nullptr) {
             env->FindClass("fr/oupson/libjxl/JxlDecoder$Callback")));
 
     this->callbackOnHeaderDecoded = env->GetMethodID(this->callbackClass, "onHeaderDecoded",
-                                                     "(IIIIZI)Z");
+                                                     "(IIIIZIZ)Z");
     this->callbackOnProgressiveFrame = env->GetMethodID(this->callbackClass, "onProgressiveFrame",
                                                         "(Landroid/graphics/Bitmap;)Z");
     this->callbackOnFrameDecoded = env->GetMethodID(this->callbackClass, "onFrameDecoded",
@@ -181,6 +181,15 @@ int Decoder::DecodeJxl(JNIEnv *env, InputSource &source, Options *options, jobje
     JxlFrameHeader frameHeader;
     JxlPixelFormat format = {4, JXL_TYPE_FLOAT16, JXL_NATIVE_ENDIAN, 0};
 
+    // HDR-content test, set at JXL_DEC_BASIC_INFO: an intensity target of
+    // >=1000 nit. A bare intensity target (> 0) is NOT sufficient - ordinary
+    // SDR photos frequently carry 203-500 nit intensity values and must stay
+    // on the SDR path. This libjxl revision exposes no image-header API
+    // (JxlImageHeader/JxlDecoderGetImageHeader), so the transfer function
+    // itself cannot be queried; PQ/HLG files always declare >=1000 nit,
+    // which this threshold covers.
+    bool is_hdr_content = false;
+
     uint8_t buffer[BUFFER_SIZE];
 
     jobject btm = nullptr;
@@ -217,11 +226,12 @@ int Decoder::DecodeJxl(JNIEnv *env, InputSource &source, Options *options, jobje
                 return -1;
             }
 
-            // F16 output only pays off for HDR content (intensity_target > 0):
-            // for SDR images the destination is always sRGB, so F16 would just
-            // double pixel bandwidth, skcms cost and bitmap/texture memory.
-            // Down-select SDR to 8-bit, even when the app requested F16.
-            const bool is_hdr = info.intensity_target > 0;
+            // F16 output only pays off for HDR content: for SDR images the
+            // destination is always sRGB, so F16 would just double pixel
+            // bandwidth, skcms cost and bitmap/texture memory. Down-select SDR
+            // to 8-bit, even when the app requested F16.
+            is_hdr_content = info.intensity_target >= 1000.0f;
+            const bool is_hdr = is_hdr_content;
             effectiveF16 = is_hdr && (btmConfigNative == BitmapConfig::F16);
             bitmapConfig = effectiveF16 ? this->bitmapConfigRgbaF16 : this->bitmapConfigRgbaU8;
             out_data.reset(new ImageOutCallbackData(
@@ -257,7 +267,8 @@ int Decoder::DecodeJxl(JNIEnv *env, InputSource &source, Options *options, jobje
                                                            info.intrinsic_ysize,
                                                            (info.have_animation) ? JNI_TRUE
                                                                                  : JNI_FALSE,
-                                                           (int) info.orientation);
+                                                           (int) info.orientation,
+                                                           is_hdr_content ? JNI_TRUE : JNI_FALSE);
             if (env->ExceptionCheck() == JNI_TRUE) {
                 return -1;
             }
@@ -266,12 +277,13 @@ int Decoder::DecodeJxl(JNIEnv *env, InputSource &source, Options *options, jobje
                 return nbr_frames;
             }
         } else if (status == JXL_DEC_COLOR_ENCODING) {
-            // Hardware HDR: for HDR images (intensity_target > 0) with an F16 output,
-            // ask the decoder for BT.2020 + PQ code values referenced to 10000 nits.
-            // The bitmap is created tagged ColorSpace.Named.BT2020_PQ (the same
-            // reference), so the display stack can reproduce the absolute luminance
-            // and tone-map it to the panel peak.
-            const bool is_hdr = info.intensity_target > 0;
+            // Hardware HDR: for HDR images (PQ/HLG or >=1000-nit, see
+            // is_hdr_content) with an F16 output, ask the decoder for BT.2020 +
+            // PQ code values referenced to 10000 nits. The bitmap is created
+            // tagged ColorSpace.Named.BT2020_PQ (the same reference), so the
+            // display stack can reproduce the absolute luminance and tone-map
+            // it to the panel peak.
+            const bool is_hdr = is_hdr_content;
             const bool use_pq_f16 = is_hdr && effectiveF16;
             if (use_pq_f16) {
                 JxlDecoderStatus r0 = JxlDecoderSetDesiredIntensityTarget(dec.get(), 10000.0f);

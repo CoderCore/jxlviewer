@@ -44,20 +44,27 @@ class JxlLoader internal constructor(
 
     private var job: Job? = null
 
+    // Set from onHeaderDecoded (JXL intensity target > 0); the viewer uses it
+    // to pick the window HDR color mode for real HDR content only.
+    var isHdr: Boolean = false
+        private set
+
     private fun getLoadingJob() = scope.launch {
         try {
             _state.emit(JxlState.Loading)
             var intrinsicSize: Size? = null
             var haveAnimation: Boolean = false
+            this@JxlLoader.isHdr = false
             var jxlPainter: JxlPainter? = null
             var transformMatrix = Matrix()
             val options = JxlDecoder.Options().setFormat(config).setDecodeProgressive(decodePreview != DecodePreview.Disabled)
             val callback = object : JxlDecoder.Callback {
                 override fun onHeaderDecoded(
-                    width: Int, height: Int, intrinsicWidth: Int, intrinsicHeight: Int, isAnimated: Boolean, orientation: Int
+                    width: Int, height: Int, intrinsicWidth: Int, intrinsicHeight: Int, isAnimated: Boolean, orientation: Int, isHdr: Boolean
                 ): Boolean {
                     intrinsicSize = Size(width.toFloat(), height.toFloat())
                     haveAnimation = isAnimated && this@JxlLoader.animated
+                    this@JxlLoader.isHdr = isHdr
 
                     if (this@JxlLoader.decodePreview != DecodePreview.WithoutFullImage) {
                         transformMatrix = getMatrixForExifOrientation(
@@ -87,7 +94,8 @@ class JxlLoader internal constructor(
                                 TiledPainter(
                                     displayBitmap,
                                     ownsImg = !identity
-                                )
+                                ),
+                                isHdr = isHdr
                             )
                         )
                         return this@JxlLoader.decodePreview == DecodePreview.WithFullImage
@@ -111,7 +119,7 @@ class JxlLoader internal constructor(
                         return if (haveAnimation) {
                             if (jxlPainter == null) {
                                 jxlPainter = JxlPainter(intrinsicSize!!, JxlPainter.Frame(duration, displayBitmap.asImageBitmap()))
-                                _state.tryEmit(JxlState.Loaded(jxlPainter))
+                                _state.tryEmit(JxlState.Loaded(jxlPainter, isHdr = isHdr))
                             } else {
                                 jxlPainter.appendFrame(JxlPainter.Frame(duration, displayBitmap.asImageBitmap()))
                             }
@@ -120,7 +128,7 @@ class JxlLoader internal constructor(
                             // Tiled upload: a single GPU texture is size-capped, so a
                             // large full-resolution image must be drawn as 2048px
                             // tiles (with 1px bleed) or the texture upload OOMs.
-                            _state.tryEmit(JxlState.Loaded(TiledPainter(displayBitmap)))
+                            _state.tryEmit(JxlState.Loaded(TiledPainter(displayBitmap), isHdr = isHdr))
                             false
                         }
                     } else {
@@ -216,9 +224,9 @@ class JxlLoader internal constructor(
 
         data object Loading : JxlState
 
-        data class Preview(val painter: Painter) : JxlState
+        data class Preview(val painter: Painter, val isHdr: Boolean = false) : JxlState
 
-        data class Loaded(val painter: Painter) : JxlState
+        data class Loaded(val painter: Painter, val isHdr: Boolean = false) : JxlState
 
         data class Error(val error: Throwable) : JxlState
     }
