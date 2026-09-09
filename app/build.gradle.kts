@@ -12,11 +12,11 @@ plugins {
 }
 kotlin {
     android {
-        namespace = "fr.oupson.jxlviewer"
+        namespace = "com.jxlviewer"
         compileSdk = libs.versions.android.compileSdk.get().toInt()
 
         defaultConfig {
-            applicationId = "fr.oupson.jxlviewer"
+            applicationId = "com.jxlviewer"
             minSdk = libs.versions.android.minSdk.get().toInt()
             targetSdk = libs.versions.android.compileSdk.get().toInt()
             versionCode = libs.versions.release.versionCode.get().toInt()

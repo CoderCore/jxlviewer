@@ -1,2 +1,0 @@
-Fixed:
-- Crash when loading big images

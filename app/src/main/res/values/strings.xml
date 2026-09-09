@@ -1,21 +1,10 @@
 <resources>
-    <string name="app_name">Jpeg XL Viewer</string>
+    <string name="app_name">JXL Viewer</string>
 
-    <!-- ViewerActivity -->
-    <string name="image_load_failed">Failed to load image</string>
-
-    <string name="gallery_title">Gallery</string>
-
-    <string name="request_permission">Request permission</string>
-    <string name="open_example_file">Open example file</string>
-    <string name="unknown">Unknown</string>
+    <string name="open_jxl_file">Open a JXL file</string>
 
     <string name="description_a_preview_of">A preview of %1$s</string>
     <string name="description_a_preview_no_name">A preview of an image</string>
-    <string name="description_go_back">Go back</string>
-    <string name="description_open_file">Open a file</string>
 
     <string name="error_failed_to_load_file">Failed to load file</string>
-    <string name="error_loading_files">Error loading files</string>
-    <string name="error_missing_permission">The gallery need permissions to list and display images. This is not mandatory if you open file in the file explorer or from other applications.</string>
 </resources>

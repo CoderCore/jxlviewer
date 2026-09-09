@@ -1,4 +1,0 @@
-Added:
-- Gallery.
-- Progressive decoding.
-- Export to PNG.
